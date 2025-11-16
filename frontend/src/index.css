@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar hide */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Active scale for buttons */
+.active\:scale-95:active {
+  transform: scale(0.95);
+}
+
+/* Hide zoom controls */
+.leaflet-container .leaflet-control-zoom {
+  display: none !important;
+}
+
+/* Or if you want to target specific elements */
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  display: none !important;
+}
