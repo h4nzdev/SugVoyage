@@ -181,7 +181,7 @@ const Login = () => {
             {/* Mobile Logo */}
             <div className="lg:hidden flex justify-center mb-8">
               <div
-                className="w-20 h-20 bg-white/20 rounded-2xl bg-cover bg-center mb-2"
+                className="w-20 h-20 bg-red-500 rounded-2xl bg-cover bg-center mb-2"
                 style={{ backgroundImage: `url(${logo})` }}
               />
             </div>

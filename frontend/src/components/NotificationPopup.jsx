@@ -10,9 +10,11 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotificationContext } from "../context/NotificationContext";
+import { useNavigate } from "react-router-dom";
 
 export default function NotificationPopup() {
   const { notification, dismissNotification } = useContext(NotificationContext);
+  const navigate = useNavigate();
 
   // Calculate distance text with proper units
   const getDistanceText = (distance) => {
@@ -96,10 +98,10 @@ export default function NotificationPopup() {
             damping: 25,
             duration: 0.3,
           }}
-          className="fixed top-4 right-4 z-[9999]"
+          className="fixed md:top-4 flex items-end justify-end z-[9999] w-full"
         >
           {/* Main Notification Card - Much softer design */}
-          <div className="bg-white rounded-2xl shadow-2xl p-6 md:w-96 w-86 border border-gray-100 backdrop-blur-sm relative overflow-hidden">
+          <div className="bg-white md:rounded-2xl shadow-2xl p-6 md:w-96 w-full border border-gray-100 backdrop-blur-sm relative overflow-hidden">
             {/* Subtle gradient accent line at top */}
             <div
               className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${categoryInfo.color}`}
@@ -223,6 +225,10 @@ export default function NotificationPopup() {
             {/* Action Buttons - Softer colors */}
             <div className="flex gap-3 mt-6">
               <button
+                onClick={() => {
+                  dismissNotification();
+                  navigate("/main/discover");
+                }}
                 className={`flex-1 bg-gradient-to-r ${categoryInfo.color} text-white hover:shadow-lg font-semibold py-3 px-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2`}
               >
                 <Navigation size={18} />

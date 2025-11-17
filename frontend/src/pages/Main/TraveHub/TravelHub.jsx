@@ -84,7 +84,7 @@ export default function TravelHub() {
     loadUserTrips();
   }, []);
 
-  console.log(user)
+  console.log(user);
 
   const loadUserTrips = async () => {
     try {
