@@ -180,9 +180,10 @@ const Login = () => {
 
             {/* Mobile Logo */}
             <div className="lg:hidden flex justify-center mb-8">
-              <div className="w-20 h-20 bg-red-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-lg">🌴</span>
-              </div>
+              <div
+                className="w-20 h-20 bg-white/20 rounded-2xl bg-cover bg-center mb-2"
+                style={{ backgroundImage: `url(${logo})` }}
+              />
             </div>
 
             {/* Desktop Header */}

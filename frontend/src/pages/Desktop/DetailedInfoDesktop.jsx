@@ -232,7 +232,7 @@ export default function DetailedInfoDesktop() {
   // Loading State
   if (loading) {
     return (
-      <div className="flex-1 bg-white flex justify-center items-center">
+      <div className="h-screen w-full bg-white flex justify-center items-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
         <p className="text-gray-600 mt-4">Loading spot information...</p>
       </div>
