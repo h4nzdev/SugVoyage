@@ -17,6 +17,8 @@ import {
   Clock,
   DollarSign,
   Users,
+  File,
+  SaveIcon,
 } from "lucide-react";
 import { ChatService } from "../../services/aiService";
 import { TripPlanService } from "../../services/tripPlanService";
@@ -250,16 +252,21 @@ const MessageList = ({
                     <button
                       onClick={() => handleSaveTrip(message.tripData)}
                       disabled={savingTrip}
-                      className={`w-full py-2 rounded-xl transition-colors ${
+                      className={`w-full py-3 rounded-xl transition-colors ${
                         savingTrip
                           ? "bg-gray-300 cursor-not-allowed"
                           : "bg-green-500 hover:bg-green-600"
                       }`}
                     >
                       <span className="text-white text-sm font-medium">
-                        {savingTrip
-                          ? "💾 Saving..."
-                          : "💾 Save Without Preview"}
+                        {savingTrip ? (
+                          "Saving..."
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <SaveIcon className="w-5 h-5 text-white" />
+                            Save Without Preview
+                          </div>
+                        )}
                       </span>
                     </button>
                   </div>

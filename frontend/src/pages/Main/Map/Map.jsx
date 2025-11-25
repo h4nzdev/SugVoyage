@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import MapMobile from "../../Mobile/MapMobile";
 import MapDesktop from "../../Desktop/MapDesktop";
-import { useSpots } from "../../../hooks/useSpots"; // Import the spots hook
-import { useSpotSocketNotification } from "../../../hooks/useSpotSocketNotification"; // Import real-time socket notification
+import { useSpots } from "../../../hooks/useSpots";
+import { useUserLocation } from "../../../context/UserLocationContext";
 
 const categories = [
   { name: "All", icon: "map-pin" },
@@ -44,42 +44,13 @@ export default function Map() {
     return savedRadius ? parseInt(savedRadius, 10) : 500;
   });
 
-  const [userLocation, setUserLocation] = useState({
-    latitude: 10.3157, // Cebu City center
-    longitude: 123.8854,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  });
+  // Use global user location from context
+  const { userLocation, setUserLocation } = useUserLocation();
 
   // Save radius to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem("mapRadius", radius.toString());
   }, [radius]);
-
-  // Load user location from browser geolocation on component mount
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          });
-        },
-        (error) => {
-          console.log("Geolocation error:", error.message);
-          // Keep default Cebu location as fallback
-        },
-        {
-          enableHighAccuracy: true, // Request high accuracy for better location
-          timeout: 10000, // 10 second timeout
-          maximumAge: 0, // Don't use cached location
-        }
-      );
-    }
-  }, []);
 
   // Handle destination from URL parameters when coming from DetailedInfo
   useEffect(() => {
@@ -100,9 +71,6 @@ export default function Map() {
 
   // Use the spots hook to get real Cebu data
   const { spots: allSpots, loading, error } = useSpots();
-
-  // Integrate real-time socket notification - zero delay push notifications
-  useSpotSocketNotification(userLocation, radius);
 
   const radiusOptions = [
     { value: 500, label: "500m" },
@@ -125,19 +93,18 @@ export default function Map() {
 
   // Calculate distance between user and spots
   const spotsWithDistance = useMemo(() => {
-    if (!filteredSpots) return [];
+    if (!filteredSpots || !userLocation) return [];
 
     return filteredSpots.map((spot) => {
       const distance = calculateDistance(
         userLocation.latitude,
         userLocation.longitude,
-        spot.latitude || 10.3157, // Fallback to Cebu center
+        spot.latitude || 10.3157,
         spot.longitude || 123.8854
       );
       return {
         ...spot,
         distance,
-        // Ensure all required fields exist
         id: spot._id || spot.id,
         name: spot.name || "Cebu Spot",
         location: spot.location || "Cebu",
@@ -165,10 +132,8 @@ export default function Map() {
     }
 
     console.log(`Creating route to ${navSpot.name} via ${travelMode}`);
-    // Set the selected spot to create the route
     setSelectedSpot(navSpot);
 
-    // This would integrate with OpenRouteService in Phase 4
     alert(
       `Route created to ${navSpot.name}!\nTravel mode: ${travelMode}\nDistance: Calculate using OpenRouteService`
     );
@@ -188,12 +153,11 @@ export default function Map() {
         },
         (error) => {
           console.log("Error getting location:", error.message);
-          // Keep current location as fallback
         },
         {
-          enableHighAccuracy: true, // Request high accuracy for better location
-          timeout: 10000, // 10 second timeout
-          maximumAge: 0, // Don't use cached location
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
         }
       );
     }
@@ -254,9 +218,9 @@ export default function Map() {
   );
 }
 
-// Utility function to calculate distance between two coordinates (for geofencing)
+// Utility function to calculate distance between two coordinates
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -266,5 +230,5 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c * 1000; // Distance in meters
+  return R * c * 1000;
 }
