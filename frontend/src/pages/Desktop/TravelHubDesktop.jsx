@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Plus,
   RefreshCw,
@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Plane,
   Search,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -25,6 +26,16 @@ const TravelHubDesktop = ({
   onRefresh,
   calculateTotalActivities,
 }) => {
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [flightSchedule, setFlightSchedule] = useState({
+    departureDate: "",
+    returnDate: "",
+    preferredTime: "morning",
+    airline: "",
+    flightNumber: "",
+    notes: "",
+  });
+
   const TripCard = ({ trip }) => {
     const totalActivities = calculateTotalActivities(trip);
     const completedActivities = trip.progress?.completedActivities || 0;
@@ -118,6 +129,32 @@ const TravelHubDesktop = ({
       </div>
     </div>
   );
+
+  const handleScheduleInput = (field, value) => {
+    setFlightSchedule((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleAddSchedule = () => {
+    console.log("📅 Flight Schedule Details:", flightSchedule);
+
+    // Here you would typically save to your database
+    // For now, we'll just log and close the modal
+    alert("Flight schedule added! Check console for details.");
+
+    // Reset form and close modal
+    setFlightSchedule({
+      departureDate: "",
+      returnDate: "",
+      preferredTime: "morning",
+      airline: "",
+      flightNumber: "",
+      notes: "",
+    });
+    setShowScheduleModal(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -298,7 +335,15 @@ const TravelHubDesktop = ({
                   </div>
                 </div>
 
-                <button className="bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl w-full text-lg font-semibold transition-all duration-200 hover:scale-105 flex items-center justify-center gap-3">
+                <button
+                  onClick={() => setShowScheduleModal(true)}
+                  className="bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl w-full text-lg font-semibold transition-all duration-200 hover:scale-105 flex items-center justify-center gap-3 mb-4"
+                >
+                  <Calendar className="w-5 h-5" />
+                  Add Flight Schedule
+                </button>
+
+                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 py-4 rounded-xl w-full text-lg font-semibold transition-all duration-200 hover:scale-105 flex items-center justify-center gap-3">
                   <Search className="w-5 h-5" />
                   Search Flights
                 </button>
@@ -377,6 +422,134 @@ const TravelHubDesktop = ({
           </div>
         )}
       </div>
+
+      {/* Flight Schedule Modal */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Add Flight Schedule
+                </h2>
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Departure Date
+                  </label>
+                  <input
+                    type="date"
+                    value={flightSchedule.departureDate}
+                    onChange={(e) =>
+                      handleScheduleInput("departureDate", e.target.value)
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Return Date
+                  </label>
+                  <input
+                    type="date"
+                    value={flightSchedule.returnDate}
+                    onChange={(e) =>
+                      handleScheduleInput("returnDate", e.target.value)
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Time
+                  </label>
+                  <select
+                    value={flightSchedule.preferredTime}
+                    onChange={(e) =>
+                      handleScheduleInput("preferredTime", e.target.value)
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  >
+                    <option value="morning">Morning (6AM - 12PM)</option>
+                    <option value="afternoon">Afternoon (12PM - 6PM)</option>
+                    <option value="evening">Evening (6PM - 12AM)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Airline (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={flightSchedule.airline}
+                    onChange={(e) =>
+                      handleScheduleInput("airline", e.target.value)
+                    }
+                    placeholder="e.g., Cebu Pacific, Philippine Airlines"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Flight Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={flightSchedule.flightNumber}
+                    onChange={(e) =>
+                      handleScheduleInput("flightNumber", e.target.value)
+                    }
+                    placeholder="e.g., 5J 123"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Notes (Optional)
+                  </label>
+                  <textarea
+                    value={flightSchedule.notes}
+                    onChange={(e) =>
+                      handleScheduleInput("notes", e.target.value)
+                    }
+                    placeholder="Any special requirements or notes..."
+                    rows="3"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddSchedule}
+                  className="flex-1 bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition-colors"
+                >
+                  Add Schedule
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

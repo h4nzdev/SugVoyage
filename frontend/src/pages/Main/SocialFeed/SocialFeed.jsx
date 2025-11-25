@@ -9,13 +9,14 @@ import {
   Share2,
   TrendingUp,
   Users,
+  BookOpen,
+  Lightbulb,
 } from "lucide-react";
 import { usePosts } from "../../../hooks/usePosts";
 import { useNavigate } from "react-router-dom";
 import CommentModal from "../../../components/SocialFeed/CommentModal";
 import { useComments } from "../../../hooks/useComments";
 import { AuthenticationContext } from "../../../context/AuthenticationContext";
-import { useAuth } from "../../../hooks/useAuth";
 
 const SocialFeed = () => {
   const [activeFilter, setActiveFilter] = useState("all");
@@ -28,6 +29,7 @@ const SocialFeed = () => {
   const [likedPosts, setLikedPosts] = useState(new Set());
   const { user } = useContext(AuthenticationContext);
 
+  // Load liked posts from localStorage on component mount
   useEffect(() => {
     const savedLikes = localStorage.getItem("likedPosts");
     if (savedLikes) {
@@ -35,18 +37,20 @@ const SocialFeed = () => {
         const likedPostIds = JSON.parse(savedLikes);
         setLikedPosts(new Set(likedPostIds));
       } catch (e) {
-        console.error("[v0] Error parsing localStorage likes:", e);
+        console.error("Error parsing liked posts from localStorage:", e);
       }
     }
   }, []);
 
+  // Save liked posts to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("likedPosts", JSON.stringify(Array.from(likedPosts)));
   }, [likedPosts]);
 
+  // Sync with server-side likes when posts and user are loaded
   useEffect(() => {
     if (posts.length > 0 && user?.id) {
-      const liked = new Set();
+      const serverLikedPosts = new Set();
       posts.forEach((post) => {
         if (post.engagement?.likedBy) {
           const isLiked = post.engagement.likedBy.some(
@@ -54,14 +58,18 @@ const SocialFeed = () => {
               likedUserId.$oid === user.id || likedUserId === user.id
           );
           if (isLiked) {
-            liked.add(post._id);
+            serverLikedPosts.add(post._id);
           }
         }
       });
-      setLikedPosts(liked);
+
+      // Merge server likes with local storage likes
+      const mergedLikes = new Set([...likedPosts, ...serverLikedPosts]);
+      setLikedPosts(mergedLikes);
     }
   }, [posts, user?.id]);
 
+  // Fetch comment counts for all posts
   useEffect(() => {
     const fetchCommentCounts = async () => {
       const counts = {};
@@ -82,24 +90,30 @@ const SocialFeed = () => {
   }, [posts, getCommentCount]);
 
   const handleLike = async (postId) => {
+    const wasLiked = likedPosts.has(postId);
+
+    // Optimistically update UI
     setLikedPosts((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(postId)) {
+      if (wasLiked) {
         newSet.delete(postId);
       } else {
         newSet.add(postId);
       }
       return newSet;
     });
+
+    // Call API
     const result = await likePost(postId);
+
+    // Revert if API call failed
     if (!result.success) {
-      // Revert on failure
       setLikedPosts((prev) => {
         const newSet = new Set(prev);
-        if (newSet.has(postId)) {
-          newSet.delete(postId);
-        } else {
+        if (wasLiked) {
           newSet.add(postId);
+        } else {
+          newSet.delete(postId);
         }
         return newSet;
       });
@@ -149,6 +163,18 @@ const SocialFeed = () => {
     return likedPosts.has(postId);
   };
 
+  const getLikeCount = (post) => {
+    const baseLikes = post.engagement?.likes || 0;
+    const isLiked = isPostLikedByUser(post._id);
+
+    // If user liked the post but server count hasn't updated yet
+    if (isLiked && baseLikes === 0) {
+      return 1;
+    }
+
+    return baseLikes;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -179,9 +205,10 @@ const SocialFeed = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-3 gap-14">
         {/* Main Feed */}
         <div className="lg:col-span-2">
+          {/* Header */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 md:p-6 mb-6">
             <div className="flex items-center justify-between">
               <div>
@@ -202,6 +229,7 @@ const SocialFeed = () => {
             </div>
           </div>
 
+          {/* Search Bar */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -215,24 +243,28 @@ const SocialFeed = () => {
             </div>
           </div>
 
+          {/* Filter Tabs */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 md:p-3 mb-6 overflow-x-auto">
             <div className="flex gap-2">
-              {["all", "popular", "food"].map((filter) => (
-                <button
-                  key={filter}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
-                    activeFilter === filter
-                      ? "bg-red-600 text-white shadow-md"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                  onClick={() => setActiveFilter(filter)}
-                >
-                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </button>
-              ))}
+              {["all", "popular", "food", "adventure", "culture"].map(
+                (filter) => (
+                  <button
+                    key={filter}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                      activeFilter === filter
+                        ? "bg-red-600 text-white shadow-md"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                    onClick={() => setActiveFilter(filter)}
+                  >
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </button>
+                )
+              )}
             </div>
           </div>
 
+          {/* Create Post Prompt */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-8 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 md:gap-4">
               <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-red-700 rounded-full flex items-center justify-center text-white flex-shrink-0">
@@ -251,6 +283,7 @@ const SocialFeed = () => {
             </div>
           </div>
 
+          {/* Posts Feed */}
           <div className="space-y-6">
             {posts.length > 0 ? (
               posts.map((post) => (
@@ -258,6 +291,7 @@ const SocialFeed = () => {
                   key={post._id}
                   className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
                 >
+                  {/* Post Header */}
                   <div className="p-4 md:p-5 border-b border-gray-100">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-red-700 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
@@ -301,6 +335,7 @@ const SocialFeed = () => {
                     </div>
                   </div>
 
+                  {/* Post Content */}
                   <div className="p-4 md:p-5">
                     <p className="text-gray-800 leading-relaxed text-base">
                       {post.content}
@@ -317,6 +352,7 @@ const SocialFeed = () => {
                     )}
                   </div>
 
+                  {/* Post Stats */}
                   <div className="px-4 md:px-5 py-3 bg-gray-50 border-t border-gray-100">
                     <div className="flex items-center justify-between text-xs text-gray-600">
                       <span className="flex items-center gap-1">
@@ -327,7 +363,7 @@ const SocialFeed = () => {
                       </span>
                       <span className="flex items-center gap-1">
                         <span className="font-semibold">
-                          {(post.engagement?.likes || 0) +
+                          {getLikeCount(post) +
                             (post.engagement?.shares || 0) +
                             getPostCommentCount(post._id)}
                         </span>
@@ -336,6 +372,7 @@ const SocialFeed = () => {
                     </div>
                   </div>
 
+                  {/* Post Actions */}
                   <div className="px-4 md:px-5 py-4 flex items-center justify-between gap-3 border-t border-gray-100">
                     <button
                       onClick={() => handleLike(post._id)}
@@ -350,9 +387,7 @@ const SocialFeed = () => {
                           isPostLikedByUser(post._id) ? "fill-current" : ""
                         }`}
                       />
-                      <span className="text-sm">
-                        {post.engagement?.likes || 0}
-                      </span>
+                      <span className="text-sm">{getLikeCount(post)}</span>
                     </button>
 
                     <button
@@ -396,49 +431,186 @@ const SocialFeed = () => {
           </div>
         </div>
 
+        {/* Sidebar - Community Section */}
         <div className="hidden lg:block">
-          <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+          <div className="sticky top-0 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-5">
               <Users className="w-5 h-5 text-red-600" />
-              <h2 className="text-lg font-bold text-gray-900">Community</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                Travel Community
+              </h2>
               <span className="ml-auto bg-red-100 text-red-600 text-xs font-semibold px-2.5 py-1 rounded-full">
-                {communityUsers.length}
+                1.2K active
               </span>
             </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {communityUsers.length > 0 ? (
-                communityUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    onClick={() => navigate(`/main/profile/${user.id}`)}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-red-700 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 text-sm">
-                      {user.avatar}
+
+            {/* Traveler Stories */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-blue-600" />
+                Traveler Stories
+              </h3>
+              <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-600 text-sm font-bold">
+                        MJ
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-gray-900 truncate">
-                        {user.name}
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Maria J.
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {user.location}
+                      <p className="text-xs text-gray-600 mt-1">
+                        "Kawasan Falls is breathtaking! Go early to avoid
+                        crowds. The canyoneering is worth every peso!"
                       </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                          Adventure
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          2 days ago
+                        </span>
+                      </div>
                     </div>
-                    <button className="flex-shrink-0 bg-red-100 text-red-600 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Plus className="w-4 h-4" />
-                    </button>
                   </div>
-                ))
-              ) : (
-                <p className="text-center text-gray-500 text-sm py-8">
-                  No users found
-                </p>
-              )}
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-green-600 text-sm font-bold">
+                        TC
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Tom C.
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        "Larsian BBQ is a must-try! Authentic Cebu street food.
+                        Try the pork barbecue and puso rice!"
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">
+                          Food
+                        </span>
+                        <span className="text-xs text-gray-500">1 day ago</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Local Tips */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                Local Tips
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 text-sm text-gray-600">
+                  <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Lightbulb className="w-3 h-3 text-amber-600" />
+                  </div>
+                  <p>Best time to visit Magellan's Cross: Weekday mornings</p>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-600">
+                  <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Lightbulb className="w-3 h-3 text-amber-600" />
+                  </div>
+                  <p>Grab app works better than taxis in Cebu City</p>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-600">
+                  <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Lightbulb className="w-3 h-3 text-amber-600" />
+                  </div>
+                  <p>Bring cash to smaller islands like Bantayan</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trending Spots */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-red-600" />
+                Trending Spots
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                <span className="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                  Kawasan Falls
+                </span>
+                <span className="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                  Temple of Leah
+                </span>
+                <span className="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                  Moalboal
+                </span>
+                <span className="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                  Oslob
+                </span>
+                <span className="bg-red-100 text-red-700 text-xs px-3 py-1.5 rounded-full font-medium">
+                  Sirao Garden
+                </span>
+              </div>
+            </div>
+
+            {/* Active Travelers */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-green-600" />
+                Now Exploring Cebu
+              </h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                  <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                    SC
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Sarah Chen
+                    </p>
+                    <p className="text-xs text-gray-500">At Kawasan Falls</p>
+                  </div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                </div>
+
+                <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                    MJ
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Mike Johnson
+                    </p>
+                    <p className="text-xs text-gray-500">In Cebu City</p>
+                  </div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Call to Action */}
+            <div className="pt-4 border-t border-gray-200">
+              <button
+                onClick={() => navigate("/main/create-post")}
+                className="w-full bg-red-600 text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Share Your Story
+              </button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Join 1,200+ travelers sharing experiences
+              </p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Comment Modal */}
       {selectedPost && (
         <CommentModal
           post={selectedPost}

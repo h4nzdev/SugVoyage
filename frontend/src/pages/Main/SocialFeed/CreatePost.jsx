@@ -17,6 +17,7 @@ import {
   Send,
   ArrowLeft,
   Image as ImageIcon,
+  Map,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { usePosts } from "../../../hooks/usePosts";
@@ -39,9 +40,11 @@ const CreatePost = () => {
     category: "other",
     tags: [],
     visibility: "public",
+    rating: 0,
   });
   const [currentTag, setCurrentTag] = useState("");
   const [selectedImages, setSelectedImages] = useState([]);
+  const [showMapPicker, setShowMapPicker] = useState(false);
 
   const colors = {
     primary: "#DC143C",
@@ -143,6 +146,41 @@ const CreatePost = () => {
     }));
   };
 
+  // Star Rating Handler
+  const handleRating = (rating) => {
+    setFormData((prev) => ({
+      ...prev,
+      rating: rating,
+    }));
+  };
+
+  // Map Picker Handler
+  const handleMapPick = () => {
+    // For demo purposes, we'll simulate picking a location
+    const demoLocations = [
+      "10.3157, 123.8854 - Cebu City Central",
+      "10.2927, 123.9014 - Ayala Center Cebu",
+      "10.3119, 123.9183 - SM City Cebu",
+      "10.2970, 123.8915 - Carbon Market",
+    ];
+
+    const randomLocation =
+      demoLocations[Math.floor(Math.random() * demoLocations.length)];
+
+    setFormData((prev) => ({
+      ...prev,
+      location: {
+        name: randomLocation,
+        coordinates: {
+          latitude: parseFloat(randomLocation.split(" - ")[0].split(", ")[0]),
+          longitude: parseFloat(randomLocation.split(" - ")[0].split(", ")[1]),
+        },
+      },
+    }));
+
+    setShowMapPicker(false);
+  };
+
   const handleSubmit = async () => {
     if (!formData.content.trim()) {
       alert("Please write something about your experience!");
@@ -163,6 +201,7 @@ const CreatePost = () => {
     formDataToSend.append("location[name]", formData.location.name.trim());
     formDataToSend.append("category", formData.category);
     formDataToSend.append("visibility", formData.visibility);
+    formDataToSend.append("rating", formData.rating.toString());
 
     // Append tags as individual fields
     formData.tags.forEach((tag) => {
@@ -315,6 +354,36 @@ const CreatePost = () => {
                 )}
               </div>
 
+              {/* Star Rating */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Star className="w-5 h-5 mr-2 text-amber-500" />
+                  Your Rating
+                </h3>
+                <div className="flex items-center space-x-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      onClick={() => handleRating(star)}
+                      className="p-1 transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`w-8 h-8 ${
+                          star <= formData.rating
+                            ? "text-amber-500 fill-amber-500"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="ml-3 text-gray-600 font-medium">
+                    {formData.rating > 0
+                      ? `${formData.rating}.0 stars`
+                      : "No rating"}
+                  </span>
+                </div>
+              </div>
+
               {/* Category Selection */}
               <div className="mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">Category</h3>
@@ -363,15 +432,35 @@ const CreatePost = () => {
                   <MapPin className="w-5 h-5 mr-2" />
                   Location
                 </h3>
-                <input
-                  type="text"
-                  value={formData.location.name}
-                  onChange={(e) =>
-                    handleInputChange("locationName", e.target.value)
-                  }
-                  placeholder="Where did you go? (e.g., Kawasan Falls, Badian)"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"
-                />
+
+                {/* Selected Location Display */}
+                {formData.location.name && (
+                  <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-green-800 font-medium">
+                      Selected Location:
+                    </p>
+                    <p className="text-green-700">{formData.location.name}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={formData.location.name}
+                    onChange={(e) =>
+                      handleInputChange("locationName", e.target.value)
+                    }
+                    placeholder="Where did you go? (e.g., Kawasan Falls, Badian)"
+                    className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white"
+                  />
+                  <button
+                    onClick={() => setShowMapPicker(true)}
+                    className="bg-red-600 text-white p-3 rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
+                  >
+                    <Map className="w-5 h-5" />
+                    <span className="hidden sm:inline">Pick on Map</span>
+                  </button>
+                </div>
 
                 {/* Quick Location Suggestions */}
                 <div className="mt-3">
@@ -539,6 +628,14 @@ const CreatePost = () => {
                     <span className="font-medium">{characterCount}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span>Rating:</span>
+                    <span className="font-medium">
+                      {formData.rating > 0
+                        ? `${formData.rating}.0 stars`
+                        : "Not rated"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span>Tags:</span>
                     <span className="font-medium">{formData.tags.length}</span>
                   </div>
@@ -560,6 +657,64 @@ const CreatePost = () => {
           </div>
         </div>
       </div>
+
+      {/* Map Picker Modal */}
+      {showMapPicker && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="bg-red-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Map className="w-6 h-6" />
+                  <div>
+                    <h2 className="text-xl font-bold">Pick Location on Map</h2>
+                    <p className="text-red-100">Select your exact location</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMapPicker(false)}
+                  className="hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Simple Map Placeholder */}
+              <div className="bg-gray-200 rounded-xl h-64 flex items-center justify-center mb-4">
+                <div className="text-center text-gray-600">
+                  <Map className="w-12 h-12 mx-auto mb-2" />
+                  <p>Map Picker Interface</p>
+                  <p className="text-sm">(For demo purposes)</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+                <p className="text-yellow-800 text-sm">
+                  <strong>Demo:</strong> Click the button below to simulate
+                  picking a random Cebu location.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleMapPick}
+                  className="flex-1 bg-red-600 text-white font-semibold py-3 rounded-xl hover:bg-red-700 transition-all"
+                >
+                  Pick This Location
+                </button>
+                <button
+                  onClick={() => setShowMapPicker(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-300 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
