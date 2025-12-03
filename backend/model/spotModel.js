@@ -24,6 +24,6 @@ const spotSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-const Spots = mongoose.model("tourist_spots", spotSchema);
+const Spots = mongoose.model("spots", spotSchema);
 
 export default Spots;

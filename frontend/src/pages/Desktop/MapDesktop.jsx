@@ -34,6 +34,8 @@ import {
   Search,
   AlertCircle,
   LoaderCircle,
+  Move,
+  GripVertical,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -47,6 +49,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
+
+// Cebu Boundary Configuration
+const CEBU_BOUNDARY = {
+  bounds: [
+    [9.5, 123.0], // Southwest corner
+    [11.5, 124.5], // Northeast corner
+  ],
+};
+
+const CEBU_CENTER = [10.3157, 123.8854];
 
 // Custom icons
 const userLocationIcon = new L.Icon({
@@ -111,7 +123,6 @@ const getStepIcon = (stepType) => {
     5: "↶", // Slight left
     6: "↷", // Slight right
     11: "↑", // Head toward
-    // Add more as needed
   };
   return icons[stepType] || "→";
 };
@@ -166,6 +177,27 @@ const getNavigationError = (errorData) => {
 
 // ==================== COMPONENTS ====================
 
+// Boundary Controller Component
+const BoundaryController = memo(() => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Set Cebu boundary restrictions
+    const bounds = L.latLngBounds(CEBU_BOUNDARY.bounds);
+    map.setMaxBounds(bounds);
+
+    // Ensure map stays within Cebu bounds
+    map.on("drag", () => {
+      map.panInsideBounds(bounds, { animate: false });
+    });
+
+    // Set initial view to Cebu center
+    map.setView(CEBU_CENTER, 11);
+  }, [map]);
+
+  return null;
+});
+
 // Location Updater Component
 const LocationUpdater = memo(
   ({
@@ -204,7 +236,6 @@ const LocationUpdater = memo(
           setUserLocation(newLocation);
           setLocationError(null);
           setLocationLoading(false);
-          map.setView([newLocation.latitude, newLocation.longitude], 15);
         },
         (error) => {
           const errorMessage = getGeolocationError(error);
@@ -267,6 +298,123 @@ const CustomMarker = memo(({ spot, onSpotSelect, isWithinRadius }) => {
     </Marker>
   );
 });
+
+// Floating Filter Panel Component
+const FloatingFilterPanel = memo(
+  ({
+    categories,
+    selectedCategory,
+    onCategoryChange,
+    radiusOptions,
+    radius,
+    onRadiusChange,
+    spots,
+  }) => {
+    const [position, setPosition] = useState({ x: 20, y: 20 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+    const handleMouseDown = (e) => {
+      setIsDragging(true);
+      setDragOffset({ x: e.clientX - position.x, y: e.clientY - position.y });
+    };
+
+    const handleMouseMove = useCallback(
+      (e) => {
+        if (!isDragging) return;
+        setPosition({
+          x: e.clientX - dragOffset.x,
+          y: e.clientY - dragOffset.y,
+        });
+      },
+      [isDragging, dragOffset]
+    );
+
+    const handleMouseUp = useCallback(() => setIsDragging(false), []);
+
+    useEffect(() => {
+      if (isDragging) {
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+        return () => {
+          document.removeEventListener("mousemove", handleMouseMove);
+          document.removeEventListener("mouseup", handleMouseUp);
+        };
+      }
+    }, [isDragging, handleMouseMove, handleMouseUp]);
+
+    return (
+      <div
+        className="absolute bg-white rounded-xl shadow-lg z-[1000] w-64"
+        style={{
+          left: position.x,
+          top: position.y,
+          cursor: isDragging ? "grabbing" : "default",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center p-3 border-b cursor-move"
+          onMouseDown={handleMouseDown}
+        >
+          <GripVertical size={16} className="text-gray-400 mr-2" />
+          <h3 className="font-semibold text-gray-900 flex items-center">
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+          </h3>
+        </div>
+
+        {/* Content */}
+        <div className="p-3 space-y-4">
+          {/* Categories */}
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2 text-sm">
+              Categories
+            </h4>
+            <div className="space-y-1">
+              {categories.map((category) => (
+                <button
+                  key={category.name}
+                  onClick={() => onCategoryChange(category.name)}
+                  className={`w-full text-left px-2 py-1.5 rounded text-sm ${
+                    selectedCategory === category.name
+                      ? "bg-red-500 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Radius */}
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2 text-sm flex items-center">
+              <Target className="w-3 h-3 mr-1" />
+              Radius
+            </h4>
+            <div className="space-y-1">
+              {radiusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => onRadiusChange(option.value)}
+                  className={`w-full text-left px-2 py-1.5 rounded text-sm ${
+                    radius === option.value
+                      ? "bg-red-500 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
 
 // Enhanced Travel Mode Selector Component
 const TravelModeSelector = memo(
@@ -406,12 +554,9 @@ const MapDesktop = ({
     setRouteCoordinates([]);
     setNavigationError(null);
     if (mapRef.current) {
-      mapRef.current.setView(
-        [userLocation.latitude, userLocation.longitude],
-        15
-      );
+      mapRef.current.setView(CEBU_CENTER, 11);
     }
-  }, [userLocation, onSpotSelect]);
+  }, [onSpotSelect]);
 
   const handleUserMove = useCallback(
     (direction) => {
@@ -502,8 +647,6 @@ const MapDesktop = ({
           setNavigationSteps(steps);
           setCurrentStepIndex(0);
 
-          console.log("Navigation steps:", steps);
-
           setRouteInfo({ distance, duration });
           setRouteCoordinates(coordinates);
           setIsNavigating(true);
@@ -518,7 +661,6 @@ const MapDesktop = ({
                 mapRef.current.setView([spot.latitude, spot.longitude], 14);
               }
             } catch (boundsError) {
-              console.warn("Bounds error, using fallback:", boundsError);
               mapRef.current.setView([spot.latitude, spot.longitude], 14);
             }
           }
@@ -549,11 +691,8 @@ const MapDesktop = ({
       if (!isNavigating || navigationSteps.length === 0) return;
 
       const currentStep = navigationSteps[currentStepIndex];
-
-      // Get the waypoints for current step
       const [startIdx, endIdx] = currentStep.way_points;
 
-      // Make sure we have valid indices
       if (
         endIdx >= routeCoordinates.length ||
         startIdx >= routeCoordinates.length
@@ -561,28 +700,18 @@ const MapDesktop = ({
         return;
       }
 
-      // Get the END coordinate of the current step
       const stepEndCoordinate = routeCoordinates[endIdx];
-
-      // Calculate distance from user to the END of current step
       const distanceToStepEnd = calculateDistance(
         currentLocation.latitude,
         currentLocation.longitude,
-        stepEndCoordinate[0], // latitude
-        stepEndCoordinate[1] // longitude
-      );
-
-      console.log(
-        `Step ${currentStepIndex + 1}: ${Math.round(
-          distanceToStepEnd
-        )}m to end - "${currentStep.instruction}"`
+        stepEndCoordinate[0],
+        stepEndCoordinate[1]
       );
 
       if (
         distanceToStepEnd < 100 &&
         currentStepIndex < navigationSteps.length - 1
       ) {
-        console.log("🎯 ADVANCING TO NEXT STEP!");
         setCurrentStepIndex((prev) => prev + 1);
       }
     },
@@ -595,7 +724,6 @@ const MapDesktop = ({
     }
   }, [isTesting, isNavigating, userLocation, updateCurrentStep]);
 
-  // Add this component inside MapDesktop, before the return
   const NavigationInstructions = () => {
     if (!isNavigating || navigationSteps.length === 0) return null;
 
@@ -604,14 +732,13 @@ const MapDesktop = ({
     const progress = ((currentStepIndex + 1) / navigationSteps.length) * 100;
 
     return (
-      <div className="absolute top-12 left-48 transform -translate-x-1/2 z-[1000] bg-white/95 backdrop-blur rounded-2xl p-4 shadow-lg border border-gray-200 min-w-80">
+      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[1000] bg-white/95 backdrop-blur rounded-2xl p-4 shadow-lg border border-gray-200 min-w-80">
         <div className="text-center">
           <h3 className="font-bold text-gray-900 mb-2 flex items-center justify-center">
             <Navigation size={16} className="mr-2" />
             NAVIGATION ACTIVE
           </h3>
 
-          {/* Progress Bar */}
           <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
             <div
               className="bg-green-500 h-2 rounded-full transition-all duration-500"
@@ -619,7 +746,6 @@ const MapDesktop = ({
             ></div>
           </div>
 
-          {/* Current Step */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
             <div className="text-sm text-blue-800 font-semibold">
               {getStepIcon(currentStep.type)} {currentStep.instruction}
@@ -629,7 +755,6 @@ const MapDesktop = ({
             </div>
           </div>
 
-          {/* Next Step Preview */}
           {nextStep && (
             <div className="text-xs text-gray-600 border-t pt-2">
               Next: {getStepIcon(nextStep.type)} {nextStep.instruction} (
@@ -637,7 +762,6 @@ const MapDesktop = ({
             </div>
           )}
 
-          {/* Progress */}
           <div className="text-xs text-gray-500 mt-2">
             Step {currentStepIndex + 1} of {navigationSteps.length}
           </div>
@@ -671,7 +795,6 @@ const MapDesktop = ({
     return navigate(-1);
   }, [navigate]);
 
-  // Check if spot is within radius for marker coloring
   const isSpotWithinRadius = useCallback(
     (spot) => {
       return spotsWithinRadius.some((radiusSpot) => radiusSpot.id === spot.id);
@@ -716,7 +839,6 @@ const MapDesktop = ({
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Testing Mode Toggle */}
               <button
                 onClick={toggleTestingMode}
                 className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors ${
@@ -741,353 +863,239 @@ const MapDesktop = ({
         </div>
       </div>
 
-      <div className="mx-8 py-6">
-        <div className="grid grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="col-span-1 space-y-6">
-            {/* Category Filter */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="font-bold text-gray-900 text-xl mb-4 flex items-center">
-                <Filter className="w-5 h-5 mr-2" />
-                Filter by Category
-              </h3>
-              <div className="space-y-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.name}
-                    onClick={() => onCategoryChange(category.name)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                      selectedCategory === category.name
-                        ? "bg-red-600 text-white shadow-md"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
-                  >
-                    <span className="font-medium">{category.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Full-screen Map Container */}
+      <div className="relative w-full h-[calc(100vh-140px)]">
+        {/* Floating Filter Panel */}
+        <FloatingFilterPanel
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onCategoryChange={onCategoryChange}
+          radiusOptions={radiusOptions}
+          radius={radius}
+          onRadiusChange={onRadiusChange}
+          spots={spots}
+          spotsWithinRadius={spotsWithinRadius}
+        />
 
-            {/* Radius Selector */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="font-bold text-gray-900 text-xl mb-4 flex items-center">
-                <Target className="w-5 h-5 mr-2" />
-                Search Radius
-              </h3>
-              <div className="space-y-2">
-                {radiusOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => onRadiusChange(option.value)}
-                    className={`w-full px-4 py-3 rounded-xl text-left transition-all ${
-                      radius === option.value
-                        ? "bg-red-600 text-white shadow-md"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
-                  >
-                    <div className="font-medium">{option.label}</div>
-                    <div className="text-sm opacity-75">
-                      {
-                        spots.filter((spot) => spot.distance <= option.value)
-                          .length
-                      }{" "}
-                      spots
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Map Container */}
+        <MapContainer
+          ref={mapRef}
+          center={CEBU_CENTER}
+          zoom={11}
+          style={{ height: "100%", width: "100%" }}
+          className="leaflet-container"
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
 
-            {/* Quick Stats */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h3 className="font-bold text-gray-900 text-xl mb-4">Map Info</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Total Spots</span>
-                  <span className="font-semibold text-gray-900">
-                    {spots.length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                  <span className="text-gray-600">Within Range</span>
-                  <span className="font-semibold text-green-600">
-                    {spotsWithinRadius.length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-gray-600">Current Radius</span>
-                  <span className="font-semibold text-gray-900">
-                    {radius / 1000}km
-                  </span>
-                </div>
-                {isNavigating && routeInfo && (
-                  <div className="pt-2 border-t border-gray-100">
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <div className="flex justify-between items-center text-sm">
-                        <div className="flex items-center space-x-2">
-                          <Navigation size={14} className="text-blue-600" />
-                          <span className="font-medium text-blue-800">
-                            {routeInfo.distance} km
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Compass size={14} className="text-blue-600" />
-                          <span className="font-medium text-blue-800">
-                            {Math.round(routeInfo.duration)} min
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {userLocation && (
-                  <div className="pt-2 border-t border-gray-100">
-                    <div className="text-xs text-gray-500">
-                      Location: {userLocation.latitude.toFixed(4)},{" "}
-                      {userLocation.longitude.toFixed(4)}
-                      {!isTesting && userLocation.accuracy && (
-                        <div>Accuracy: {userLocation.accuracy.toFixed(1)}m</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* Boundary Controller */}
+          <BoundaryController />
 
-          {/* Main Map Area */}
-          <div className="col-span-3">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              {/* Map Container */}
-              <div className="h-[600px] relative">
-                <MapContainer
-                  ref={mapRef}
-                  center={[userLocation.latitude, userLocation.longitude]}
-                  zoom={13}
-                  style={{ height: "100%", width: "100%" }}
-                  className="leaflet-container"
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  />
+          {/* User Location Marker */}
+          <Marker
+            position={[userLocation.latitude, userLocation.longitude]}
+            icon={userLocationIcon}
+          >
+            <Popup>
+              {isTesting ? "Test Location" : "You are here!"}
+              <br />
+              {!isTesting &&
+                userLocation.accuracy &&
+                `Accuracy: ${userLocation.accuracy.toFixed(1)}m`}
+            </Popup>
+          </Marker>
 
-                  {/* User Location Marker with Custom Icon */}
-                  <Marker
-                    position={[userLocation.latitude, userLocation.longitude]}
-                    icon={userLocationIcon}
-                  >
-                    <Popup>
-                      {isTesting ? "Test Location" : "You are here!"}
-                      <br />
-                      {!isTesting &&
-                        userLocation.accuracy &&
-                        `Accuracy: ${userLocation.accuracy.toFixed(1)}m`}
-                    </Popup>
-                  </Marker>
+          {/* Spots Markers */}
+          {spots.map((spot) => (
+            <CustomMarker
+              key={spot.id}
+              spot={spot}
+              onSpotSelect={focusOnSpot}
+              isWithinRadius={isSpotWithinRadius(spot)}
+            />
+          ))}
 
-                  {/* Spots Markers with Color Coding */}
-                  {spots.map((spot) => (
-                    <CustomMarker
-                      key={spot.id}
-                      spot={spot}
-                      onSpotSelect={focusOnSpot}
-                      isWithinRadius={isSpotWithinRadius(spot)}
-                    />
-                  ))}
+          {/* Navigation Route */}
+          {isNavigating && routeCoordinates.length > 0 && (
+            <Polyline
+              positions={routeCoordinates}
+              pathOptions={{
+                color: "#3B82F6",
+                weight: 6,
+                opacity: 0.7,
+                lineJoin: "round",
+              }}
+            />
+          )}
 
-                  {/* Navigation Route */}
-                  {isNavigating && routeCoordinates.length > 0 && (
-                    <Polyline
-                      positions={routeCoordinates}
-                      pathOptions={{
-                        color: "#3B82F6",
-                        weight: 6,
-                        opacity: 0.7,
-                        lineJoin: "round",
-                      }}
-                      key={routeCoordinates.length}
-                    />
-                  )}
+          {/* Radius Circle */}
+          <Circle
+            center={[userLocation.latitude, userLocation.longitude]}
+            radius={radius}
+            pathOptions={{
+              color: "red",
+              fillColor: "red",
+              fillOpacity: 0.1,
+            }}
+          />
 
-                  {/* Radius Circle */}
-                  <Circle
-                    center={[userLocation.latitude, userLocation.longitude]}
-                    radius={radius}
-                    pathOptions={{
-                      color: "red",
-                      fillColor: "red",
-                      fillOpacity: 0.1,
-                    }}
-                  />
+          <LocationUpdater
+            setUserLocation={onUserLocationChange}
+            setLocationError={setLocationError}
+            isTesting={isTesting}
+            setLocationLoading={setLocationLoading}
+            onLocationUpdate={updateCurrentStep}
+          />
+        </MapContainer>
 
-                  <LocationUpdater
-                    setUserLocation={onUserLocationChange}
-                    setLocationError={setLocationError}
-                    isTesting={isTesting}
-                    setLocationLoading={setLocationLoading}
-                    onLocationUpdate={updateCurrentStep}
-                  />
-                </MapContainer>
+        {/* Map Controls */}
+        <div className="absolute top-4 right-4 z-[1000] flex flex-col space-y-3">
+          <button
+            onClick={focusOnUser}
+            className="w-12 h-12 flex items-center justify-center bg-white rounded-xl shadow-lg hover:bg-gray-50 transition-colors"
+          >
+            <Navigation size={20} className="text-gray-700" />
+          </button>
 
-                {/* Map Controls */}
-                <div className="absolute top-4 right-4 z-[1000] flex flex-col space-y-3">
-                  {/* Focus on User */}
-                  <button
-                    onClick={focusOnUser}
-                    className="w-12 h-12 flex items-center justify-center bg-white rounded-xl shadow-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <Navigation size={20} className="text-gray-700" />
-                  </button>
-
-                  {/* Stop Navigation */}
-                  {isNavigating && (
-                    <button
-                      onClick={stopNavigation}
-                      className="w-12 h-12 flex items-center justify-center bg-red-500 rounded-xl shadow-lg hover:bg-red-600 transition-colors"
-                    >
-                      <X size={20} className="text-white" />
-                    </button>
-                  )}
-                </div>
-
-                <NavigationInstructions />
-
-                {/* Location Controller for Testing Mode */}
-                <LocationController
-                  onMove={handleUserMove}
-                  isTesting={isTesting}
-                />
-              </div>
-
-              {/* Selected Spot Details */}
-              {selectedSpot && (
-                <div className="border-t border-gray-200 p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                        {selectedSpot.name}
-                      </h3>
-                      <p className="text-gray-500 text-lg mb-3">
-                        {selectedSpot.location}
-                      </p>
-                      <p className="text-gray-600 leading-relaxed mb-4">
-                        {selectedSpot.description}
-                      </p>
-
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center">
-                            <Star
-                              size={18}
-                              className="text-yellow-500 mr-2"
-                              fill="currentColor"
-                            />
-                            <span className="text-gray-800 font-semibold text-lg">
-                              {selectedSpot.rating}
-                            </span>
-                          </div>
-                          <div
-                            className={`px-4 py-2 rounded-full text-lg font-semibold ${
-                              selectedSpot.distance <= radius
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {formatDistance(selectedSpot.distance)} away
-                            {selectedSpot.distance <= radius && " ✅"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Travel Mode Selector */}
-                      <TravelModeSelector
-                        travelMode={travelMode}
-                        setTravelMode={onTravelModeChange}
-                        travelModes={travelModes}
-                      />
-
-                      {/* Route Information */}
-                      {routeInfo && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-                          <div className="flex justify-between items-center text-lg">
-                            <div className="flex items-center space-x-3">
-                              <Navigation size={18} className="text-blue-600" />
-                              <span className="font-semibold text-blue-800">
-                                {routeInfo.distance} km
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                              <Compass size={18} className="text-blue-600" />
-                              <span className="font-semibold text-blue-800">
-                                {Math.round(routeInfo.duration)} min
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => onSpotSelect(null)}
-                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors ml-4"
-                    >
-                      <X className="w-6 h-6" />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => startNavigation(selectedSpot)}
-                    disabled={isCalculatingRoute}
-                    className={`w-full py-4 rounded-2xl font-semibold text-xl text-white transition-all duration-200 hover:scale-101 cursor-pointer ${
-                      isCalculatingRoute
-                        ? "bg-gray-400 cursor-not-allowed"
-                        : selectedSpot.distance <= radius
-                        ? "bg-green-600 hover:bg-green-700"
-                        : "bg-red-600 hover:bg-red-700"
-                    }`}
-                  >
-                    {isCalculatingRoute ? (
-                      <div className="flex items-center justify-center gap-4 rounded-full">
-                        CALCULATING ROUTE
-                        <LoaderCircle className="animate-spin" />
-                      </div>
-                    ) : (
-                      `START NAVIGATION TO ${selectedSpot.name.toUpperCase()}`
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* Bottom Info */}
-              {!selectedSpot && (
-                <div className="border-t border-gray-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-gray-600 text-lg">
-                        🗺️ Found {spotsWithinRadius.length}{" "}
-                        {selectedCategory.toLowerCase()} spots within{" "}
-                        {radius / 1000}km radius
-                      </div>
-                      <div className="text-gray-400 text-sm mt-1">
-                        Click on any marker to see details and start navigation
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-green-500 rounded-full" />
-                        <span className="text-gray-500">Within range</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-red-500 rounded-full" />
-                        <span className="text-gray-500">Outside range</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          {isNavigating && (
+            <button
+              onClick={stopNavigation}
+              className="w-12 h-12 flex items-center justify-center bg-red-500 rounded-xl shadow-lg hover:bg-red-600 transition-colors"
+            >
+              <X size={20} className="text-white" />
+            </button>
+          )}
         </div>
+
+        <NavigationInstructions />
+
+        <LocationController onMove={handleUserMove} isTesting={isTesting} />
+
+        {/* Selected Spot Details Panel */}
+        {selectedSpot && (
+          <div className="absolute max-w-3xl bottom-4 right-0 right-4 z-[1000] bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  {selectedSpot.name}
+                </h3>
+                <p className="text-gray-500 text-lg mb-3">
+                  {selectedSpot.location}
+                </p>
+                <p className="text-gray-600 leading-relaxed mb-4">
+                  {selectedSpot.description}
+                </p>
+
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center">
+                      <Star
+                        size={18}
+                        className="text-yellow-500 mr-2"
+                        fill="currentColor"
+                      />
+                      <span className="text-gray-800 font-semibold text-lg">
+                        {selectedSpot.rating}
+                      </span>
+                    </div>
+                    <div
+                      className={`px-4 py-2 rounded-full text-lg font-semibold ${
+                        selectedSpot.distance <= radius
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {formatDistance(selectedSpot.distance)} away
+                      {selectedSpot.distance <= radius && " ✅"}
+                    </div>
+                  </div>
+                </div>
+
+                <TravelModeSelector
+                  travelMode={travelMode}
+                  setTravelMode={onTravelModeChange}
+                  travelModes={travelModes}
+                />
+
+                {routeInfo && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                    <div className="flex justify-between items-center text-lg">
+                      <div className="flex items-center space-x-3">
+                        <Navigation size={18} className="text-blue-600" />
+                        <span className="font-semibold text-blue-800">
+                          {routeInfo.distance} km
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <Compass size={18} className="text-blue-600" />
+                        <span className="font-semibold text-blue-800">
+                          {Math.round(routeInfo.duration)} min
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => onSpotSelect(null)}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors ml-4"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => startNavigation(selectedSpot)}
+              disabled={isCalculatingRoute}
+              className={`w-full py-4 rounded-2xl font-semibold text-xl text-white transition-all duration-200 hover:scale-101 cursor-pointer ${
+                isCalculatingRoute
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : selectedSpot.distance <= radius
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
+              }`}
+            >
+              {isCalculatingRoute ? (
+                <div className="flex items-center justify-center gap-4 rounded-full">
+                  CALCULATING ROUTE
+                  <LoaderCircle className="animate-spin" />
+                </div>
+              ) : (
+                `START NAVIGATION TO ${selectedSpot.name.toUpperCase()}`
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Bottom Info Bar */}
+        {!selectedSpot && (
+          <div className="absolute bottom-4 left-4 right-4 z-[1000] bg-white/95 backdrop-blur rounded-2xl border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-gray-600 text-lg">
+                  🗺️ Found {spotsWithinRadius.length}{" "}
+                  {selectedCategory.toLowerCase()} spots within {radius / 1000}
+                  km radius
+                </div>
+                <div className="text-gray-400 text-sm mt-1">
+                  Click on any marker to see details and start navigation
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-green-500 rounded-full" />
+                  <span className="text-gray-500">Within range</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-red-500 rounded-full" />
+                  <span className="text-gray-500">Outside range</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
